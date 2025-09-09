@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Restaurante Sabores</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google APIs (cargar gapi y GIS) -->
+  <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()" async defer></script>
+  <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()" async defer></script>
+</head>
+
+<body class="bg-gray-100 font-sans">
+  <div class="max-w-3xl mx-auto p-6">
+    <!-- Encabezado -->
+    <header class="bg-blue-600 text-white p-4 rounded-lg mb-6 text-center">
+      <h1 class="text-2xl font-bold">Restaurante Sabores</h1>
+      <p>Explora, pide y disfruta</p>
+    </header>
+
+    <!-- Paso 1: Selección de productos -->
+    <section id="paso1" class="step">
+      <h2 class="text-xl font-semibold mb-4">1. Selecciona tus productos</h2>
+      <div id="menu" class="grid md:grid-cols-2 gap-4 mb-6"></div>
+      <div class="flex justify-between">
+        <button id="btnContinuar1" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Continuar</button>
+        <button id="btnVerHistorial" class="bg-gray-700 text-white px-4 py-2 rounded-lg">Ver Historial</button>
+      </div>
+    </section>
+
+    <!-- Paso 2: Datos del cliente -->
+    <section id="paso2" class="step hidden">
+      <h2 class="text-xl font-semibold mb-4">2. Ingresa tus datos</h2>
+      <form id="datos-form" class="space-y-4">
+        <div>
+          <label for="nombre" class="block text-gray-700">Tu nombre:</label>
+          <input type="text" id="nombre" required class="w-full border rounded-lg p-2">
+        </div>
+        <div>
+          <label for="comentarios" class="block text-gray-700">Comentarios:</label>
+          <textarea id="comentarios" rows="3" class="w-full border rounded-lg p-2"></textarea>
+        </div>
+        <div class="flex justify-between">
+          <button type="button" id="btnCancelar2" class="bg-red-500 text-white px-4 py-2 rounded-lg">Cancelar</button>
+          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Continuar</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Paso 3: Confirmación del pedido -->
+    <section id="paso3" class="step hidden">
+      <h2 class="text-xl font-semibold mb-4">3. Confirmación de tu pedido</h2>
+      <div class="bg-white shadow rounded-lg p-6">
+        <p><strong>Cliente:</strong> <span id="conf-nombre"></span></p>
+        <p class="mt-2"><strong>Productos:</strong></p>
+        <ul id="conf-productos" class="list-disc pl-6 text-gray-700"></ul>
+        <p class="mt-2"><strong>Comentarios:</strong> <span id="conf-comentarios"></span></p>
+        <p class="mt-2 font-bold text-lg">Total: <span id="conf-total"></span></p>
+      </div>
+      <div class="flex justify-between mt-4">
+        <button id="btnCancelar3" class="bg-red-500 text-white px-4 py-2 rounded-lg">Cancelar</button>
+        <button id="btnConfirmarFinal" class="bg-green-600 text-white px-4 py-2 rounded-lg">Confirmar Pedido</button>
+      </div>
+      <p id="mensaje" class="text-green-600 mt-4 hidden">¡Pedido enviado!</p>
+    </section>
+
+    <!-- Pantalla de éxito -->
+    <section id="pasoExito" class="step hidden">
+      <div class="bg-white shadow rounded-lg p-8 text-center">
+        <div class="text-4xl mb-2">✅</div>
+        <h2 class="text-2xl font-bold mb-2">Pedido realizado</h2>
+        <p class="text-gray-700">Tu número de pedido es:</p>
+        <p id="numero-pedido" class="text-2xl font-extrabold mt-1"></p>
+        <p class="text-gray-600 mt-2">Gracias por tu compra.</p>
+      </div>
+      <div class="flex flex-wrap gap-2 justify-center mt-6">
+        <button id="btnInicio" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Volver al inicio</button>
+        <button id="btnHistorial" class="bg-gray-700 text-white px-4 py-2 rounded-lg">Ver Historial</button>
+      </div>
+      <p id="status-sync" class="mt-2 text-center text-gray-600"></p>
+    </section>
+
+    <!-- Modal Historial -->
+    <div id="modalHistorial" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center">
+      <div class="bg-white rounded-xl shadow-lg w-full max-w-3xl p-6 relative">
+        <button id="cerrarHistorial" class="absolute top-3 right-3 text-gray-600 hover:text-black">x</button>
+        <h2 class="text-xl font-semibold mb-4 text-gray-700">Historial de pedidos</h2>
+        <ul id="lista-pedidos" class="space-y-2 text-gray-700 max-h-96 overflow-y-auto"></ul>
+
+        <!-- Botones extra dentro del historial -->
+        <div class="mt-4 flex justify-end gap-2">
+          <button id="downloadCSV" class="bg-yellow-500 text-white px-4 py-2 rounded-lg">⬇ Descargar CSV</button>
+          <button id="syncSheets" class="bg-green-600 text-white px-4 py-2 rounded-lg">☁ Sincronizar con Sheets</button>
+        </div>
+        <p id="status-sync-historial" class="mt-2 text-sm text-gray-600"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ================= DATOS BASE =================
+    const menus = [
+      { id: 1, nombre: "Pizza Margherita", precio: 10.99, descripcion: "Tomate, mozzarella y albahaca." },
+      { id: 2, nombre: "Hamburguesa Clasica", precio: 8.5, descripcion: "Carne, lechuga, tomate y salsa especial." },
+      { id: 3, nombre: "Ensalada Cesar", precio: 6.75, descripcion: "Lechuga, crutones, pollo y aderezo Cesar." },
+      { id: 4, nombre: "Pasta Carbonara", precio: 9.25, descripcion: "Espagueti con huevo, queso y panceta." },
+      { id: 5, nombre: "Tacos al Pastor", precio: 7.99, descripcion: "Cerdo, piña y cilantro." }
+    ];
+    const STORAGE_KEY = "historialPedidos";
+
+    // ================= ESTADO =================
+    let historial = [];
+    let carrito = [];
+    let datosCliente = {};
+
+    // ================= MENÚ =================
+    const menuContainer = document.getElementById("menu");
+    menus.forEach(menu => {
+      const card = document.createElement("div");
+      card.className = "bg-white p-4 rounded-lg shadow";
+      card.innerHTML = `
+        <h3 class="text-lg font-semibold">${menu.nombre}</h3>
+        <p class="text-gray-600">${menu.descripcion}</p>
+        <p class="text-blue-600 font-bold">$${menu.precio.toFixed(2)}</p>
+        <label class="text-sm text-gray-700 mt-2 block">Cantidad</label>
+        <input type="number" id="cant-${menu.id}" min="0" value="0" class="border rounded p-1 w-24">
+      `;
+      menuContainer.appendChild(card);
+    });
+
+    // ================= UTILS =================
+    function mostrarPaso(id) {
+      document.querySelectorAll(".step").forEach(s => s.classList.add("hidden"));
+      document.getElementById(id).classList.remove("hidden");
+    }
+
+    function loadHistorial() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      historial = saved ? JSON.parse(saved) : [];
+      renderHistorial();
+    }
+    function saveHistorial() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(historial));
+      const headers = ["ID","Cliente","Productos","Total","Comentarios","Fecha"];
+      const rows = historial.map(p => [
+        p.id, `"${p.nombre}"`, `"${p.menu}"`, p.total, `"${p.comentarios || ""}"`, p.fecha
+      ]);
+      const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
+      localStorage.setItem("historialPedidosCSV", csv);
+    }
+    function renderHistorial() {
+      const ul = document.getElementById("lista-pedidos");
+      ul.innerHTML = "";
+      historial.forEach(p => {
+        const li = document.createElement("li");
+        li.className = "border-b pb-2";
+        li.innerHTML = `
+          <p><strong>${p.nombre}</strong> pidió: ${p.menu}</p>
+          <p>Total: $${p.total} — <span class="text-sm text-gray-500">${p.fecha}</span></p>
+          <p>Comentarios: ${p.comentarios || "Ninguno"}</p>
+        `;
+        ul.appendChild(li);
+      });
+    }
+    loadHistorial();
+
+    // ================= PASO 1 =================
+    document.getElementById("btnContinuar1").addEventListener("click", () => {
+      carrito = [];
+      menus.forEach(m => {
+        const cant = parseInt(document.getElementById(`cant-${m.id}`).value);
+        if (cant > 0) carrito.push({ ...m, cantidad: cant });
+      });
+      if (carrito.length === 0) return alert("Selecciona al menos un producto.");
+      mostrarPaso("paso2");
+    });
+
+    // ================= PASO 2 =================
+    document.getElementById("datos-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      datosCliente.nombre = document.getElementById("nombre").value.trim();
+      datosCliente.comentarios = document.getElementById("comentarios").value.trim();
+
+      // Llenar confirmación
+      document.getElementById("conf-nombre").textContent = datosCliente.nombre;
+      document.getElementById("conf-comentarios").textContent = datosCliente.comentarios || "Ninguno";
+      const lista = document.getElementById("conf-productos");
+      lista.innerHTML = "";
+      let total = 0;
+      carrito.forEach(item => {
+        const li = document.createElement("li");
+        li.textContent = `${item.cantidad} x ${item.nombre} - $${(item.precio * item.cantidad).toFixed(2)}`;
+        lista.appendChild(li);
+        total += item.precio * item.cantidad;
+      });
+      document.getElementById("conf-total").textContent = `$${total.toFixed(2)}`;
+      mostrarPaso("paso3");
+    });
+
+    // ================= PASO 2: Cancelar =================
+    document.getElementById("btnCancelar2").addEventListener("click", () => {
+      document.getElementById("datos-form").reset();
+      mostrarPaso("paso1");
+    });
+
+    // ================= PASO 3 =================
+    document.getElementById("btnConfirmarFinal").addEventListener("click", () => {
+      const total = carrito.reduce((acc, p) => acc + p.precio * p.cantidad, 0);
+      const id = generarNumeroPedido();
+      const pedido = {
+        id,
+        nombre: datosCliente.nombre,
+        menu: carrito.map(p => `${p.cantidad}x ${p.nombre}`).join(", "),
+        total: total.toFixed(2),
+        comentarios: datosCliente.comentarios,
+        fecha: new Date().toLocaleString()
+      };
+      historial.push(pedido);
+      saveHistorial();
+      renderHistorial();
+      document.getElementById("numero-pedido").textContent = `#${id}`;
+      mostrarPaso("pasoExito");
+      carrito = [];
+      datosCliente = {};
+      document.getElementById("datos-form").reset();
+    });
+
+    function generarNumeroPedido() {
+      const d = new Date();
+      const pad = (n) => n.toString().padStart(2, "0");
+      const stamp = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+      const rnd = Math.floor(Math.random() * 900 + 100);
+      return `S-${stamp}-${rnd}`;
+    }
+    // ================= PASO 3: Cancelar =================
+    document.getElementById("btnCancelar3").addEventListener("click", () => {
+      carrito = [];
+      datosCliente = {};
+      document.getElementById("datos-form").reset();
+      mostrarPaso("paso1");
+    });
+
+    // ================= VOLVER AL INICIO =================
+    document.getElementById("btnInicio").addEventListener("click", () => {
+      // Reiniciar los campos de cantidad
+      menus.forEach(m => {
+        document.getElementById(`cant-${m.id}`).value = 0;
+      });
+      mostrarPaso("paso1");
+    });
+
+    // ================= HISTORIAL POPUP =================
+    document.getElementById("btnVerHistorial").addEventListener("click", () => {
+      document.getElementById("modalHistorial").classList.remove("hidden");
+    });
+    document.getElementById("btnHistorial").addEventListener("click", () => {
+      document.getElementById("modalHistorial").classList.remove("hidden");
+    });
+    document.getElementById("cerrarHistorial").addEventListener("click", () => {
+      document.getElementById("modalHistorial").classList.add("hidden");
+    });
+
+    // Descargar CSV en popup
+    document.getElementById("downloadCSV").addEventListener("click", () => {
+      const csv = localStorage.getItem("historialPedidosCSV");
+      if (!csv) return alert("No hay pedidos guardados.");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "historial_pedidos.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Sincronizar con Sheets en popup
+    document.getElementById("syncSheets").addEventListener("click", handleSyncToSheets);
+
+    // ================= GOOGLE SHEETS API =================
+    const GOOGLE_CLIENT_ID = "TU_CLIENT_ID.apps.googleusercontent.com";
+    const GOOGLE_API_KEY = "TU_API_KEY";
+    const SPREADSHEET_ID = "TU_SPREADSHEET_ID";
+    const SHEET_NAME = "Pedidos";
+    const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
+
+    let gapiInited = false;
+    let gisInited = false;
+    let tokenClient;
+
+    function gapiLoaded() { gapi.load("client", initializeGapiClient); }
+    async function initializeGapiClient() {
+      try {
+        await gapi.client.init({
+          apiKey: GOOGLE_API_KEY,
+          discoveryDocs: ["https://sheets.googleapis.com/$discovery/rest?version=v4"],
+        });
+        gapiInited = true;
+      } catch (e) { console.error("Error inicializando gapi:", e); }
+    }
+    function gisLoaded() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: SCOPES,
+        callback: () => {}
+      });
+      gisInited = true;
+    }
+
+    async function handleSyncToSheets() {
+      const status = document.getElementById("status-sync-historial");
+      if (!navigator.onLine) return alert("Sin conexión a internet.");
+      if (!gapiInited || !gisInited) {
+        return alert("Cargando librerías de Google… vuelve a intentar.");
+      }
+      if (!SPREADSHEET_ID || SPREADSHEET_ID === "TU_SPREADSHEET_ID") {
+        return alert("Configura SPREADSHEET_ID en el código.");
+      }
+      status.textContent = "Autenticando…";
+      tokenClient.callback = async (resp) => {
+        if (resp.error) {
+          status.textContent = "Error de autenticación";
+          return;
+        }
+        try {
+          status.textContent = "Sincronizando con Google Sheets…";
+          await appendHistorialToSheet(historial);
+          status.textContent = "¡Sincronizado con Google Sheets!";
+          setTimeout(() => status.textContent = "", 3000);
+        } catch (err) {
+          status.textContent = "Error al sincronizar: " + err.message;
+        }
+      };
+      const token = gapi.client.getToken();
+      if (!token) tokenClient.requestAccessToken({ prompt: "consent" });
+      else tokenClient.requestAccessToken({ prompt: "" });
+    }
+
+    async function appendHistorialToSheet(historialLocal) {
+      const values = historialLocal.map(p => [
+        p.id, p.nombre, p.menu, p.total, p.comentarios || "", p.fecha
+      ]);
+      if (values.length === 0) throw new Error("No hay filas para sincronizar.");
+      await gapi.client.sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A1`,
+        valueInputOption: "USER_ENTERED",
+        insertDataOption: "INSERT_ROWS",
+        resource: { values }
+      });
+    }
+  </script>
+</body>
+</html>
