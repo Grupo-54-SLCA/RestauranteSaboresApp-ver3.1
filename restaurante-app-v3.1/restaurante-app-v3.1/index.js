@@ -37,7 +37,7 @@ app.post("/", async (req, res) => {
   // Instancia de Google Sheets API
   const googleSheets = google.sheets({ version: "v4", auth: client });
 
-  const spreadsheetId = SPREADSHEETID;
+  const spreadsheetId = SPREAHSHEETID;
 
   // Obtener la metada de spreadsheet
   const metaData = await googleSheets.spreadsheets.get({
@@ -62,6 +62,7 @@ app.post("/", async (req, res) => {
       values: filas,
     },
   });
+  res.json({ message: "Sincronización completada" }); // ✅ importante
 });
 
 app.listen(1337, (req, res) => console.log("running on 1337"));
