@@ -474,13 +474,30 @@
       }
 
       async function handleSyncToSheets() {
-        const response = await fetch("http://localhost:1337/", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ historial: historial }),
-        });
-      }
+        //   const response = await fetch("http://localhost:1337/", {
+        //     method: "POST",
+        //     headers: { "Content-Type": "application/json" },
+        //     body: JSON.stringify({ historial: historial }),
+        //   });
+        // }
+        const statusEl = document.getElementById("status-sync-historial");
+        try {
+          statusEl.textContent = "⏳ Sincronizando con Google Sheets…";
 
+          const response = await fetch("http://localhost:1337/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ historial: historial }),
+          });
+
+          if (!response.ok) throw new Error("Error al sincronizar");
+
+          statusEl.textContent = "✅ ¡Sincronizado con Google Sheets!";
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = "❌ Error al sincronizar con Google Sheets.";
+        }
+      }
       async function appendHistorialToSheet(historialLocal) {
         const values = historialLocal.map((p) => [
           p.id,
